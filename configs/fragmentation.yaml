@@ -1,0 +1,9 @@
+seed: 42
+method: metfrag_lite
+top_candidates: 50
+max_spectra: 8
+max_bonds: 32
+mz_tolerance_da: 0.02
+top_intensity_peaks: 10
+min_fragment_mass: 15.0
+status: implemented_milestone_6_baseline

@@ -1,0 +1,33 @@
+name: Experiment proposal
+description: Propose a leakage-safe model or retrieval experiment
+title: "[Experiment]: "
+labels: [experiment]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+      description: What change should improve MRR@25, candidate recall, robustness, or runtime?
+    validations:
+      required: true
+  - type: textarea
+    id: protocol
+    attributes:
+      label: Evaluation protocol
+      description: Identify the selection fold, untouched report fold, baseline, and success criterion.
+    validations:
+      required: true
+  - type: textarea
+    id: resources
+    attributes:
+      label: Data and compute
+      description: List external data provenance/licenses, expected artifacts, and runtime budget.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Leakage and submission risks
+      description: Explain how structure leakage and offline-notebook compliance will be checked.
+    validations:
+      required: true

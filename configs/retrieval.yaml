@@ -1,0 +1,21 @@
+seed: 42
+mass_tolerance_ppm: 20.0
+candidate_database:
+  path: data/processed/production_candidates.parquet
+  # Treat these as separate ranker features. The widest channel is a fallback
+  # for noisy precursor metadata, not a replacement for the exact channel.
+  mass_tolerances_ppm: [20.0, 50.0, 1000.0]
+  max_candidates: 5000
+mz_tolerance_da: 0.02
+top_spectra: 1000
+top_structures: 500
+require_same_polarity: true
+aggregation: top_k_mean
+aggregation_top_k: 3
+use_modified_cosine: true
+use_neutral_loss_cosine: true
+analog:
+  mass_window_da: 200.0
+  max_comparisons: 5000
+  top_hits_per_spectrum: 100
+  max_unique_structures: 25

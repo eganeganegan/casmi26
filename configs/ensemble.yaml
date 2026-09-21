@@ -1,0 +1,12 @@
+seed: 42
+method: reciprocal_rank_fusion
+k: 60
+weights:
+  mass: 1.0
+  spectral: 1.0
+  analog: 0.75
+  fingerprint: 1.0
+  reranker: 1.5
+status: implemented_milestone_6_baseline
+selected_for_production: false
+selection_note: fixed three-channel blend underperformed the fragment-aware reranker on fold 0

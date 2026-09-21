@@ -1,0 +1,41 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+*.egg-info/
+
+# Local editors and operating-system metadata.
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Credentials and machine-local configuration. Keep the example allowlisted.
+.env
+.env.*
+!.env.example
+kaggle.json
+access_token
+credentials.json
+*.pem
+*.key
+
+# Competition data and generated research artifacts are distributed separately.
+data/raw/*
+data/processed/*
+data/external/*
+data/cache/*
+!data/**/.gitkeep
+experiments/*/
+predictions/
+submission.csv
+dist/
+vendor/wheels/*.whl

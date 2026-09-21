@@ -1,0 +1,10 @@
+# Replace or extend this with the GitHub team slug once teammates have joined the repository.
+* @eganeganegan
+
+# These paths affect competition correctness, leakage boundaries, or release artifacts.
+/src/casmi/chemistry/ @eganeganegan
+/src/casmi/validation/ @eganeganegan
+/src/casmi/inference/ @eganeganegan
+/scripts/build_kaggle_bundles.py @eganeganegan
+/scripts/run_offline_inference.py @eganeganegan
+/notebooks/06_kaggle_inference.ipynb @eganeganegan

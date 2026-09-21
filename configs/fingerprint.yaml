@@ -1,0 +1,24 @@
+seed: 42
+n_bits: 2048
+radius: 2
+max_mz: 1200.0
+bin_width: 1.0
+bin_aggregation: max
+include_metadata: true
+model: mlp
+hidden_dims: [512, 256]
+dropout: 0.15
+batch_size: 128
+epochs: 20
+learning_rate: 0.001
+weight_decay: 0.0001
+max_positive_weight: 50.0
+patience: 3
+max_spectra_per_structure: 2
+max_train_spectra: 200000
+max_early_stopping_spectra: 20000
+max_report_spectra: 20000
+report_fold: 0
+early_stopping_fold: 1
+device: auto
+status: implemented_milestone_4_baseline

@@ -1,0 +1,32 @@
+seed: 42
+spectrum:
+  min_relative_intensity: 0.01
+  intensity_transform: sqrt
+  remove_precursor_window_da: 2.0
+  top_n: 256
+  mz_power: 0.0
+  mz_tolerance_da: 0.02
+retrieval:
+  top_spectra: 1000
+  top_structures: 500
+  use_mass_filter: true
+  mass_tolerance_ppm: 20.0
+  require_same_polarity: true
+candidate_database:
+  path: data/processed/production_candidates.parquet
+  mass_tolerances_ppm: [20.0, 50.0, 1000.0]
+  max_candidates: 5000
+analog:
+  mass_window_da: 200.0
+  max_comparisons: 5000
+  top_hits_per_spectrum: 100
+  max_unique_structures: 25
+aggregation:
+  method: top_k_mean
+  top_k: 3
+ranking:
+  max_candidates: 1000
+validation:
+  folds: 5
+  strategy: structure
+  fold: 0
