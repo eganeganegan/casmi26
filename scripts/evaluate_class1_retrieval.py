@@ -42,6 +42,11 @@ def main() -> None:
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--queries", type=int, default=500)
+    parser.add_argument(
+        "--query-ids",
+        type=Path,
+        help="Optional CSV containing molecule_id values to evaluate in listed order",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--train", type=Path)
     parser.add_argument("--ingest-lib")
@@ -49,8 +54,8 @@ def main() -> None:
     parser.add_argument("--mz-tolerance-da", type=float, default=0.02)
     parser.add_argument("--top-spectra", type=int, default=500)
     args = parser.parse_args()
-    if args.queries <= 0:
-        parser.error("--queries must be positive")
+    if args.queries < 0:
+        parser.error("--queries must be non-negative")
     if (args.train is None) != (args.ingest_lib is None):
         parser.error("--train and --ingest-lib must be supplied together")
 
@@ -77,10 +82,26 @@ def main() -> None:
         eligible = np.flatnonzero(counts >= 2)
     if not len(eligible):
         raise ValueError("No structures have at least two library spectra")
-    rng = np.random.default_rng(args.seed)
-    selected_codes = rng.choice(
-        eligible, size=min(args.queries, len(eligible)), replace=False
-    )
+    requested_count: int | None = None
+    ineligible_ids: list[str] = []
+    if args.query_ids:
+        requested = pd.read_csv(args.query_ids)["molecule_id"].astype(str).tolist()
+        requested_count = len(requested)
+        code_by_key = {str(index.structure_keys[code]): code for code in eligible}
+        ineligible_ids = [key for key in requested if key not in code_by_key]
+        selected_codes = np.asarray(
+            [code_by_key[key] for key in requested if key in code_by_key],
+            dtype=np.int64,
+        )
+        if args.queries:
+            selected_codes = selected_codes[: args.queries]
+    else:
+        if args.queries == 0:
+            parser.error("--queries=0 requires --query-ids")
+        rng = np.random.default_rng(args.seed)
+        selected_codes = rng.choice(
+            eligible, size=min(args.queries, len(eligible)), replace=False
+        )
     pending = set(map(int, selected_codes))
     selected_indices: list[int] = []
     for raw_index in source_indices:
@@ -131,6 +152,10 @@ def main() -> None:
     ranks = pd.to_numeric(frame["truth_rank"], errors="coerce")
     report: dict[str, object] = {
         "queries": len(frame),
+        "requested_query_ids": str(args.query_ids) if args.query_ids else None,
+        "requested_queries": requested_count,
+        "ineligible_or_absent_queries": len(ineligible_ids),
+        "ineligible_or_absent_examples": ineligible_ids[:10],
         "ingest_lib": args.ingest_lib,
         "mrr_at_25": float(((1.0 / ranks).where(ranks.le(25), 0.0)).fillna(0.0).mean()),
         "hits_at_1": float(frame["top_correct"].mean()),

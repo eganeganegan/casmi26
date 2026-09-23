@@ -16,15 +16,23 @@ def main() -> None:
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=16_384)
+    parser.add_argument(
+        "--per-polarity",
+        action="store_true",
+        help="Retain the richest representative separately for each ionization polarity",
+    )
     args = parser.parse_args()
     started = time.perf_counter()
     index = RawRepresentativeEntropyIndex.from_parquet(
         args.input,
         batch_size=args.batch_size,
+        per_polarity=args.per_polarity,
     )
     index.save(args.output)
     report = {
-        "representative_structures": len(index),
+        "representatives": len(index),
+        "representative_structures": index.structure_count,
+        "per_polarity": args.per_polarity,
         "representative_peaks": index.peak_count,
         "storage_mib": index.storage_nbytes / 1024**2,
         "runtime_seconds": time.perf_counter() - started,

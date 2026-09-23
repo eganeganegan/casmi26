@@ -3,4 +3,4 @@
 from casmi.pipeline import CASMIPipeline
 
 __all__ = ["CASMIPipeline"]
-__version__ = "0.2.0"
+__version__ = "0.11.0"

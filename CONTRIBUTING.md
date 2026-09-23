@@ -5,7 +5,7 @@ licensed, or competition-controlled artifacts. A fresh clone should be useful wi
 
 Human contributors and coding assistants should read `AGENTS.md` before making changes. `CODEX.md`,
 `COPILOT.md`, and `.github/copilot-instructions.md` provide tool-specific guidance without replacing
-the shared repository rules.
+the shared repository rules. Current, claimable work is listed in `CONTRIBUTOR_TASKS.md`.
 
 ## Set up a development environment
 

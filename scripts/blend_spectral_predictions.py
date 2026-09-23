@@ -12,7 +12,7 @@ def blend_spectral_gate(
     ranked: pd.DataFrame,
     spectral: pd.DataFrame,
     *,
-    min_cosine: float = 0.95,
+    min_cosine: float = 0.90,
     min_explained_intensity: float = 0.70,
     min_matched_peaks: int = 6,
 ) -> pd.DataFrame:
@@ -96,7 +96,7 @@ def main() -> None:
     parser.add_argument("--ranked", type=Path, required=True)
     parser.add_argument("--spectral", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--min-cosine", type=float, default=0.95)
+    parser.add_argument("--min-cosine", type=float, default=0.90)
     parser.add_argument("--min-explained-intensity", type=float, default=0.70)
     parser.add_argument("--min-matched-peaks", type=int, default=6)
     args = parser.parse_args()

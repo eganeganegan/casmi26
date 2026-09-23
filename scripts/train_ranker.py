@@ -133,6 +133,27 @@ def main() -> None:
             lgb.log_evaluation(int(config.get("log_period", 50))),
         ],
     )
+    validation = validation.copy()
+    validation["ranker_score"] = model.predict(
+        feature_matrix(validation, feature_columns), num_iteration=model.best_iteration_
+    )
+    validation_truth = {
+        molecule_id: molecule_id
+        for molecule_id in validation["molecule_id"].astype(str).drop_duplicates()
+    }
+    validation_predictions = _ranked_predictions(
+        validation,
+        "ranker_score",
+        ascending=False,
+    )
+    internal_validation = {
+        **evaluate_mrr(validation_truth, validation_predictions).to_dict(),
+        **evaluate_candidate_recall(
+            validation_truth,
+            validation_predictions,
+            (25, 100, 500, 5000),
+        ),
+    }
     report_frame = report_frame.copy()
     report_frame["ranker_score"] = model.predict(
         feature_matrix(report_frame, feature_columns), num_iteration=model.best_iteration_
@@ -169,6 +190,7 @@ def main() -> None:
             "train_positive_queries": len(fitting_ids),
             "validation_positive_queries": len(validation_ids),
             "excluded_zero_positive_queries": int((positive_by_query == 0).sum()),
+            "internal_validation": internal_validation,
             "runtime_seconds": time.perf_counter() - started,
         }
     )

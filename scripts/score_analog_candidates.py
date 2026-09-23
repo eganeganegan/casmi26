@@ -59,6 +59,11 @@ def main() -> None:
     parser.add_argument("--max-query-spectra", type=int, default=3)
     parser.add_argument("--mass-window-da", type=float, default=200.0)
     parser.add_argument("--mz-tolerance-da", type=float, default=0.02)
+    parser.add_argument(
+        "--require-same-polarity",
+        action="store_true",
+        help="Compare each query spectrum only with representatives of the same polarity",
+    )
     parser.add_argument("--analog-weight", type=float, default=0.1)
     parser.add_argument("--rrf-k", type=float, default=60.0)
     parser.add_argument(
@@ -104,6 +109,7 @@ def main() -> None:
                 mass_window_da=args.mass_window_da,
                 mz_tolerance_da=args.mz_tolerance_da,
                 exclude_inchikey14={molecule_id},
+                require_same_polarity=args.require_same_polarity,
             )
             analog_fingerprints: list[np.ndarray] = []
             analog_similarities: list[float] = []
@@ -159,11 +165,13 @@ def main() -> None:
     report = {
         "rows": len(output),
         "queries": int(output["molecule_id"].nunique()),
-        "representative_structures": len(analog_index),
+        "representatives": len(analog_index),
+        "representative_structures": analog_index.structure_count,
         "representative_peaks": analog_index.peak_count,
         "top_analogs": args.top_analogs,
         "max_query_spectra": args.max_query_spectra,
         "mass_window_da": args.mass_window_da,
+        "require_same_polarity": args.require_same_polarity,
         "analog_weight": args.analog_weight,
         "rrf_k": args.rrf_k,
         "features_only": args.features_only,
