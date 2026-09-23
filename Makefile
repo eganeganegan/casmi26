@@ -4,7 +4,7 @@ PYTHON ?= .venv/bin/python
 	train-fingerprint candidate-descriptors fragment-features ranking-features train-ranker ensemble \
 	download-chembl candidate-db-chembl candidate-db-expanded fingerprint-index-expanded \
 	candidate-descriptors-expanded offline-inference kaggle-bundles class1-eval analog-eval \
-	analog-ranker entropy-index dual-analog-ranker
+	analog-ranker entropy-index dual-analog-ranker class1-gate-eval
 
 ANALOG_FEATURES := analog_score_power4 analog_score_linear analog_tanimoto_max \
 	analog_tanimoto_top analog_tanimoto_weighted_mean analog_top_similarity analog_rank \
@@ -97,6 +97,26 @@ class1-eval:
 		--model data/cache/pipeline_compact.joblib --train data/raw/train.parquet \
 		--ingest-lib enveda-np-examples \
 		--output experiments/EXP024/class1_enveda_np.csv --queries 250
+
+class1-gate-eval:
+	$(PYTHON) scripts/evaluate_class1_retrieval.py \
+		--model data/cache/pipeline_compact.joblib \
+		--query-ids experiments/EXP023/fold1/query_ids.csv --queries 0 \
+		--output experiments/EXP029/fold1/class1_retrieval.csv
+	$(PYTHON) scripts/evaluate_spectral_gate.py \
+		--ranked experiments/EXP025/fold1_baseline.parquet \
+		--spectral experiments/EXP029/fold1/class1_retrieval.csv \
+		--query-ids experiments/EXP023/fold1/query_ids.csv \
+		--output experiments/EXP029/fold1/spectral_gate.json
+	$(PYTHON) scripts/evaluate_class1_retrieval.py \
+		--model data/cache/pipeline_compact.joblib \
+		--query-ids experiments/EXP023/fold0/query_ids.csv --queries 0 \
+		--output experiments/EXP029/fold0/class1_retrieval.csv
+	$(PYTHON) scripts/evaluate_spectral_gate.py \
+		--ranked experiments/EXP027/ranker/predictions.parquet \
+		--spectral experiments/EXP029/fold0/class1_retrieval.csv \
+		--query-ids experiments/EXP023/fold0/query_ids.csv \
+		--output experiments/EXP029/fold0/spectral_gate.json
 
 analog-eval:
 	$(PYTHON) scripts/predict_ranker.py \
@@ -251,7 +271,7 @@ offline-inference:
 		--analog-index data/cache/raw_entropy_representatives.joblib \
 		--descriptor-cache data/cache/expanded_candidate_descriptors.parquet \
 		--ranker-dir experiments/EXP027/ranker \
-		--work-dir predictions/exp027 --output submission.csv
+		--work-dir predictions/exp029 --output submission.csv
 
 kaggle-bundles:
 	$(PYTHON) scripts/build_kaggle_bundles.py --force

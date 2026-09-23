@@ -1,5 +1,21 @@
 # Changelog
 
+## Milestone 12 - 2026-09-21
+
+- recorded EXP027's 0.226 public leaderboard score, up 0.041 absolute (+22.2%) from
+  EXP026's 0.185 and 0.110 absolute (+94.8%) from EXP023's 0.116;
+- evaluated an EXP028 polarity-aware entropy index with 371,919 representatives for 275,808
+  structures; standalone fold-1 MRR@25 improved from 0.57521 to 0.58147, but replacement and
+  third-channel rankers fell below the frozen EXP027 internal-validation MRR, so it was rejected;
+- added exact split-manifest support to the leave-one-spectrum-out Class-1 audit and a reproducible
+  spectral-gate evaluator over frozen candidate rankings;
+- selected a 0.90 direct-library cosine gate on fold 1, where it raises full-split MRR@25 from
+  0.09061 to 0.20442 while retaining 83.4% precision across 843 gated queries;
+- with that threshold frozen, improved untouched fold-0 blended MRR@25 from 0.14802 at the old 0.95
+  gate to 0.22755, Hits@1 from 0.1284 to 0.2118, and Hits@25 from 0.1948 to 0.2642;
+- promoted the gate change as EXP029, verified the full 400-molecule offline path in 450.25 seconds,
+  retained the frozen EXP027 model assets, and bumped the project to 0.11.0.
+
 ## Milestone 11 - 2026-09-21
 
 - prepared the repository for team collaboration with credential and large-artifact exclusions,

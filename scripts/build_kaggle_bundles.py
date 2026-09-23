@@ -31,7 +31,9 @@ def _copy(source: Path, destination: Path, *, force: bool) -> dict[str, object]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build offline source and EXP027 Kaggle datasets")
+    parser = argparse.ArgumentParser(
+        description="Build the EXP029 source and frozen EXP027 model-asset Kaggle datasets"
+    )
     parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument(
         "--asset-output", type=Path, default=Path("dist/casmi26-exp027-assets")
@@ -74,7 +76,13 @@ def main() -> None:
     (args.asset_output / "ASSET_MANIFEST.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
-    source_files = ("pyproject.toml", "requirements.txt", "README.md", "CHANGELOG.md")
+    source_files = (
+        "pyproject.toml",
+        "requirements.txt",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+    )
     for name in source_files:
         _copy(root / name, args.source_output / name, force=args.force)
     wheels = sorted((root / "vendor/wheels").glob("rdkit-2026.3.3-*.whl"))

@@ -178,7 +178,7 @@ def build_commands(
                 "--output",
                 str(blended),
                 "--min-cosine",
-                "0.95",
+                "0.90",
                 "--min-explained-intensity",
                 "0.70",
                 "--min-matched-peaks",

@@ -120,6 +120,11 @@ def main() -> None:
     parser.add_argument("--max-query-spectra", type=int, default=3)
     parser.add_argument("--mass-window-da", type=float, default=200.0)
     parser.add_argument("--mz-tolerance-da", type=float, default=0.02)
+    parser.add_argument(
+        "--require-same-polarity",
+        action="store_true",
+        help="Compare each query spectrum only with representatives of the same polarity",
+    )
     parser.add_argument("--rrf-k", type=float, default=60.0)
     args = parser.parse_args()
     started = time.perf_counter()
@@ -184,6 +189,7 @@ def main() -> None:
                 mass_window_da=args.mass_window_da,
                 mz_tolerance_da=args.mz_tolerance_da,
                 exclude_inchikey14={molecule_id},
+                require_same_polarity=args.require_same_polarity,
                 inputs_preprocessed=not bool(args.train_spectra),
             )
             analog_fingerprints: list[np.ndarray] = []
@@ -255,11 +261,13 @@ def main() -> None:
         "queries": len(selected_ids),
         "positive_only": args.positive_only,
         "seed": args.seed,
-        "representative_structures": len(analog_index),
+        "representatives": len(analog_index),
+        "representative_structures": analog_index.structure_count,
         "representative_peaks": analog_index.peak_count,
         "top_analogs": args.top_analogs,
         "max_query_spectra": args.max_query_spectra,
         "mass_window_da": args.mass_window_da,
+        "require_same_polarity": args.require_same_polarity,
         "median_valid_analogs": float(np.median(analog_counts)) if analog_counts else 0.0,
         "metrics": {name: evaluate_mrr(truth, values).to_dict() for name, values in predictions.items()},
         "runtime_seconds": time.perf_counter() - started,

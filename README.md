@@ -124,7 +124,7 @@ ChEMBL is licensed under `CC BY-SA 3.0`; retain its attribution and ShareAlike t
 the derived parquet as a Kaggle dataset. The downloader is a local preparation utility, and the
 competition notebook must consume the attached parquet without internet access. The resulting
 3,408,337-structure expanded database passes the structure-disjoint coverage gate and is selected for
-EXP023, then retained by EXP024 through EXP027.
+EXP023, then retained by EXP024 through EXP029.
 
 Build its packed Morgan index and descriptor cache locally before packaging:
 
@@ -405,13 +405,13 @@ four-channel CASMI baseline. The compact index covers all 2,539,608 training spe
 holds out one spectrum while explicitly excluding that spectrum from retrieval, so another public
 reference spectrum must support the prediction. On 500 deterministic multi-spectrum structures it
 reaches MRR@25 0.79363, Hits@1 0.728, and Hits@25 0.962. A cosine >= 0.95 gate with at least 70%
-explained query intensity and six matched peaks has 100% precision on the 27 accepted validation
-queries. Lower-confidence queries retain the EXP023 ranking unchanged.
+explained query intensity and six matched peaks had 100% precision on the original 27 accepted
+validation queries. Lower-confidence queries retained the EXP023 ranking unchanged.
 
 On all 250 structures from the instrument- and chemistry-matched `enveda-np-examples` cohort, the
 same leave-one-spectrum-out retrieval reaches MRR@25 0.93405, Hits@1 0.892, and Hits@25 1.0. Although
-a 0.90 cosine gate is perfect on the 20 matched-cohort queries it accepts, EXP024 retains 0.95 because
-the broader multi-library audit exposes false positives between 0.90 and 0.95.
+a 0.90 cosine gate is perfect on the 20 matched-cohort queries it accepts. EXP024 initially retained
+0.95 because the smaller broad-library audit exposed false positives between 0.90 and 0.95.
 
 Reproduce that audit with `make class1-eval`.
 
@@ -457,9 +457,17 @@ than replace the original 12 analog features. On the same untouched 5,000-query 
 73-feature ranker reaches MRR@25 0.12368, Hits@1 0.1026, and Hits@25 0.1748: a 5.6% MRR gain over
 EXP026. Rebuild and validate this model with `make dual-analog-ranker`.
 
+EXP027 scored 0.226 on the public leaderboard, up 0.041 absolute (+22.2%) from EXP026. EXP029 then
+revisits the conservative Class-1 gate using every eligible structure in the fold manifests rather
+than a 500-query sample. With the gate fixed at cosine >= 0.90, explained intensity >= 0.70, and at
+least six matched peaks, fold-1 MRR@25 rises from 0.09061 to 0.20442. On untouched fold 0, the same
+gate raises the complete blended MRR@25 from 0.14802 at the former 0.95 threshold to 0.22755, Hits@1
+from 0.1284 to 0.2118, and Hits@25 from 0.1948 to 0.2642. Reproduce the selection and frozen report
+with `make class1-gate-eval`.
+
 ## Offline Kaggle submission
 
-Run the complete frozen EXP027 inference path locally with:
+Run the complete EXP029 inference path locally with:
 
 ```bash
 make offline-inference
@@ -468,7 +476,7 @@ make offline-inference
 This executes spectrum-to-fingerprint prediction, exact-mass candidate generation, bounded top-50
 fragment scoring, feature construction, dual mass-shifted analog propagation, learned LightGBM ranking,
 high-confidence direct spectral gating, and strict submission validation. On the downloaded
-400-molecule test set EXP027 completes locally in 498.6 seconds and writes the required
+400-molecule example test set EXP029 completes locally in 450.25 seconds and writes the required
 `submission.csv`. The verified file has all 400 sample-submission IDs and exactly 25 valid,
 structure-deduplicated SMILES per row.
 
@@ -478,7 +486,8 @@ Build the two datasets expected by the Kaggle inference notebook with:
 make kaggle-bundles
 ```
 
-This creates `dist/casmi26-source/` and `dist/casmi26-exp027-assets/`. The asset bundle contains the
+This refreshes `dist/casmi26-source/` and the frozen `dist/casmi26-exp027-assets/`. EXP029 changes
+the source-side gate only, so the EXP027 model assets remain valid. The asset bundle contains the
 expanded candidate parquet, packed Morgan index, compact spectral index, raw entropy index, descriptor
 cache, fingerprint model, ranker, and feature schema, plus a SHA-256/license manifest. Publish those directories as
 private Kaggle datasets, attach them and the competition data to

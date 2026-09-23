@@ -199,6 +199,29 @@ def _search_representatives(
     return scores
 
 
+@njit(cache=False)
+def _best_scores_by_structure(
+    candidate_indices: np.ndarray,
+    structure_codes: np.ndarray,
+    representative_scores: np.ndarray,
+    allowed: np.ndarray,
+    structure_count: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Collapse representative scores to the best representative per structure."""
+    best_scores = np.zeros(structure_count, dtype=np.float32)
+    best_positions = np.full(structure_count, -1, dtype=np.int64)
+    for candidate_position in range(len(candidate_indices)):
+        if not allowed[candidate_position]:
+            continue
+        representative_index = int(candidate_indices[candidate_position])
+        structure_code = int(structure_codes[representative_index])
+        score = representative_scores[candidate_position]
+        if score > best_scores[structure_code]:
+            best_scores[structure_code] = score
+            best_positions[structure_code] = candidate_position
+    return best_scores, best_positions
+
+
 def _entropy_weight(intensity: np.ndarray) -> np.ndarray:
     probability = np.clip(np.asarray(intensity, dtype=np.float32), 0.0, None)
     total = float(probability.sum())
@@ -255,6 +278,10 @@ class RepresentativeEntropyIndex:
             self.peak_offsets,
         )
         self._structure_code_by_key: dict[str, int] | None = None
+
+    @property
+    def structure_count(self) -> int:
+        return len(self.library.structure_keys)
 
     def _structure_key(self, code: int) -> str:
         return self.library.structure_keys[code]
@@ -315,10 +342,10 @@ class RepresentativeEntropyIndex:
         }
         excluded_codes: set[int] = set()
         if plausible_keys:
-            if self._structure_code_by_key is None:
+            if getattr(self, "_structure_code_by_key", None) is None:
                 self._structure_code_by_key = {
                     self._structure_key(code): code
-                    for code in range(len(self.structure_codes))
+                    for code in range(self.structure_count)
                 }
             excluded_codes = {
                 self._structure_code_by_key[key]
@@ -373,18 +400,27 @@ class RepresentativeEntropyIndex:
             )
             aggregate[local_positions] = np.maximum(aggregate[local_positions], local_scores)
 
-        eligible = np.flatnonzero(allowed & (aggregate > 0.0))
-        if not len(eligible):
+        structure_scores, best_positions = _best_scores_by_structure(
+            candidates,
+            self.structure_codes,
+            aggregate,
+            allowed,
+            self.structure_count,
+        )
+        eligible_codes = np.flatnonzero(best_positions >= 0)
+        if not len(eligible_codes):
             return []
-        keep = min(top_n, len(eligible))
-        if keep < len(eligible):
-            local = np.argpartition(aggregate[eligible], -keep)[-keep:]
-            eligible = eligible[local]
-        eligible = eligible[np.argsort(aggregate[eligible], kind="stable")[::-1]]
+        keep = min(top_n, len(eligible_codes))
+        if keep < len(eligible_codes):
+            local = np.argpartition(structure_scores[eligible_codes], -keep)[-keep:]
+            eligible_codes = eligible_codes[local]
+        eligible_codes = eligible_codes[
+            np.argsort(structure_scores[eligible_codes], kind="stable")[::-1]
+        ]
         hits: list[EntropyAnalogHit] = []
-        for position in eligible:
+        for structure_code in eligible_codes:
+            position = int(best_positions[structure_code])
             representative_index = int(candidates[position])
-            structure_code = int(self.structure_codes[representative_index])
             reference_mass = float(self.neutral_masses[representative_index])
             hits.append(
                 EntropyAnalogHit(
@@ -425,6 +461,7 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
         peak_probability: np.ndarray,
         structure_keys: _PackedStrings,
         structure_smiles: _PackedStrings,
+        structure_codes: np.ndarray | None = None,
         preprocessing: SpectrumPreprocessingConfig | None = None,
     ) -> None:
         self.library = None
@@ -437,17 +474,24 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
         self.peak_probability = np.asarray(peak_probability, dtype=np.float32)
         self.structure_keys = structure_keys
         self.structure_smiles = structure_smiles
-        self.structure_codes = np.arange(len(self.neutral_masses), dtype=np.uint32)
+        self.structure_codes = (
+            np.arange(len(self.neutral_masses), dtype=np.uint32)
+            if structure_codes is None
+            else np.asarray(structure_codes, dtype=np.uint32)
+        )
         self._structure_code_by_key: dict[str, int] | None = None
         count = len(self.neutral_masses)
         if not (
             len(self.spectrum_indices)
             == len(self.polarities)
-            == len(self.structure_keys)
-            == len(self.structure_smiles)
+            == len(self.structure_codes)
             == count
         ):
             raise ValueError("Raw representative metadata arrays must have equal lengths")
+        if len(self.structure_keys) != len(self.structure_smiles):
+            raise ValueError("Raw representative structure metadata must have equal lengths")
+        if count and int(self.structure_codes.max()) >= len(self.structure_keys):
+            raise ValueError("Raw representative structure code is out of range")
         if len(self.peak_offsets) != count + 1 or int(self.peak_offsets[-1]) != len(self.peak_mz):
             raise ValueError("Raw representative peak offsets are inconsistent")
         if len(self.peak_probability) != len(self.peak_mz):
@@ -460,6 +504,10 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
 
     def _structure_smiles(self, code: int) -> str:
         return self.structure_smiles[code]
+
+    @property
+    def structure_count(self) -> int:
+        return len(self.structure_keys)
 
     @property
     def storage_nbytes(self) -> int:
@@ -495,6 +543,7 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
         path: str | Path,
         *,
         batch_size: int = 16_384,
+        per_polarity: bool = False,
         preprocessing: SpectrumPreprocessingConfig | None = None,
     ) -> RawRepresentativeEntropyIndex:
         """Build the standalone index in two streaming passes over a parquet file."""
@@ -516,8 +565,8 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
         else:
             metadata_columns.append(cmap.mz)
 
-        # key -> (peak count, global row, smiles, neutral mass, polarity)
-        richest: dict[str, tuple[int, int, str, float, int]] = {}
+        # selection key -> (structure key, peak count, global row, smiles, mass, polarity)
+        richest: dict[tuple[str, int], tuple[str, int, int, str, float, int]] = {}
         row_offset = 0
         for batch in parquet.iter_batches(batch_size=batch_size, columns=metadata_columns):
             values = batch.to_pydict()
@@ -532,9 +581,6 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
                     else len(parse_peak_array(values[cmap.mz][local_index]))
                 )
                 key = str(key_value)
-                previous = richest.get(key)
-                if previous is not None and peak_count <= previous[0]:
-                    continue
                 try:
                     neutral_mass = neutral_mass_from_precursor(
                         float(values[cmap.precursor_mz][local_index]),
@@ -546,7 +592,12 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
                     continue
                 mode = str(values[cmap.ionization_mode][local_index] or "").lower()
                 polarity = 1 if mode == "positive" else -1 if mode == "negative" else 0
-                richest[key] = (
+                selection_key = (key, polarity if per_polarity else 0)
+                previous = richest.get(selection_key)
+                if previous is not None and peak_count <= previous[1]:
+                    continue
+                richest[selection_key] = (
+                    key,
                     peak_count,
                     row_offset + local_index,
                     str(smiles_value),
@@ -555,7 +606,7 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
                 )
             row_offset += batch.num_rows
 
-        selected = {metadata[1]: (key, metadata) for key, metadata in richest.items()}
+        selected = {metadata[2]: metadata for metadata in richest.values()}
         source_mz = array("f")
         source_intensity = array("f")
         source_offsets = array("Q", [0])
@@ -580,7 +631,7 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
                 global_row = selected_rows[selected_position]
                 selected_position += 1
                 local_index = global_row - row_offset
-                key, metadata = selected[global_row]
+                metadata = selected[global_row]
                 mz, intensity = clean_spectrum(
                     values[cmap.mz][local_index],
                     values[cmap.intensity][local_index],
@@ -592,10 +643,10 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
                 source_intensity.frombytes(np.asarray(intensity, dtype=np.float32).tobytes())
                 source_offsets.append(len(source_mz))
                 source_rows.append(global_row)
-                keys.append(key)
-                smiles.append(metadata[2])
-                masses.append(metadata[3])
-                polarities.append(metadata[4])
+                keys.append(metadata[0])
+                smiles.append(metadata[3])
+                masses.append(metadata[4])
+                polarities.append(metadata[5])
             row_offset = batch_end
 
         mass_values = np.asarray(masses, dtype=np.float64)
@@ -614,9 +665,18 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
         )
         key_builder = _PackedStringBuilder()
         smiles_builder = _PackedStringBuilder()
+        key_to_code: dict[str, int] = {}
+        structure_codes: list[int] = []
         for source_index in order:
-            key_builder.append(keys[int(source_index)])
-            smiles_builder.append(smiles[int(source_index)])
+            source_position = int(source_index)
+            key = keys[source_position]
+            structure_code = key_to_code.get(key)
+            if structure_code is None:
+                structure_code = len(key_to_code)
+                key_to_code[key] = structure_code
+                key_builder.append(key)
+                smiles_builder.append(smiles[source_position])
+            structure_codes.append(structure_code)
         return cls(
             spectrum_indices=np.asarray(source_rows, dtype=np.int64)[order],
             neutral_masses=mass_values[order],
@@ -626,5 +686,6 @@ class RawRepresentativeEntropyIndex(RepresentativeEntropyIndex):
             peak_probability=peak_probability,
             structure_keys=key_builder.finish(),
             structure_smiles=smiles_builder.finish(),
+            structure_codes=np.asarray(structure_codes, dtype=np.uint32),
             preprocessing=cfg,
         )
