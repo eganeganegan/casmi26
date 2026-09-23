@@ -17,19 +17,22 @@ def _spectrum(
     mass: float,
     mz: list[float],
     intensity: list[float],
+    *,
+    adduct: str = "[M+H]+",
+    ionization_mode: str = "positive",
 ) -> Spectrum:
     return Spectrum(
         molecule_id=key,
         spectrum_id=spectrum_id,
-        precursor_mz=theoretical_precursor_mz(mass, "[M+H]+"),
-        adduct="[M+H]+",
+        precursor_mz=theoretical_precursor_mz(mass, adduct),
+        adduct=adduct,
         collision_energy=20.0,
         mz=np.asarray(mz),
         intensity=np.asarray(intensity),
         smiles=smiles,
         inchikey14=key,
         exact_mass=mass,
-        ionization_mode="positive",
+        ionization_mode=ionization_mode,
     )
 
 
@@ -89,8 +92,16 @@ def test_representative_index_can_require_matching_polarity() -> None:
         preprocessing=SpectrumPreprocessingConfig(remove_precursor_window_da=None),
     )
     index = RepresentativeEntropyIndex(library)
-    query = _spectrum("NEGATIVEQUERY1", "negative", "CCN", mass, [10, 20], [1, 1])
-    query.ionization_mode = "negative"
+    query = _spectrum(
+        "NEGATIVEQUERY1",
+        "query",
+        "CCN",
+        mass,
+        [10, 20],
+        [1, 1],
+        adduct="[M-H]-",
+        ionization_mode="negative",
+    )
 
     unrestricted = index.search_molecule([query], top_n=1)
     restricted = index.search_molecule([query], top_n=1, require_same_polarity=True)
@@ -148,7 +159,7 @@ def test_raw_representative_index_retains_and_collapses_polarities(tmp_path) -> 
             "adduct": ["[M+H]+", "[M-H]-", "[M-H]-"],
             "ionization_mode": ["positive", "negative", "negative"],
             "num_peaks": [3, 2, 2],
-            "ms2_mzs": [[10.0, 20.0, 30.0], [40.0, 50.0], [15.0, 25.0]],
+            "ms2_mzs": [[10.0, 20.0, 30.0], [40.0, 50.0], [40.0, 55.0]],
             "ms2_normalized_intensities": [[1.0, 0.8, 0.6], [1.0, 0.7], [1.0, 1.0]],
         }
     ).to_parquet(path, index=False)
@@ -158,12 +169,20 @@ def test_raw_representative_index_retains_and_collapses_polarities(tmp_path) -> 
         batch_size=2,
         per_polarity=True,
     )
-    query = _spectrum("QUERYSTRUCTURE", "negative", "CCCO", mass, [40, 50], [1.0, 0.7])
-    query.ionization_mode = "negative"
+    query = _spectrum(
+        "QUERYSTRUCTURE",
+        "query",
+        "CCCO",
+        mass,
+        [40, 50],
+        [1.0, 0.7],
+        adduct="[M-H]-",
+        ionization_mode="negative",
+    )
     hits = index.search_molecule(
         [query],
         mass_window_da=5,
-        top_n=10,
+        top_n=2,
         require_same_polarity=True,
     )
 
@@ -171,6 +190,17 @@ def test_raw_representative_index_retains_and_collapses_polarities(tmp_path) -> 
     assert index.structure_count == 2
     assert hits[0].inchikey14 == "REFERENCEKEY12"
     assert sum(hit.inchikey14 == "REFERENCEKEY12" for hit in hits) == 1
+    positive_query = _spectrum(
+        "QUERYSTRUCTURE",
+        "positive-query",
+        "CCCO",
+        mass,
+        [10, 20, 30],
+        [1.0, 0.8, 0.6],
+    )
+    unrestricted = index.search_molecule([query, positive_query], mass_window_da=5, top_n=2)
+    assert len(unrestricted) == 2
+    assert sum(hit.inchikey14 == "REFERENCEKEY12" for hit in unrestricted) == 1
     excluded = index.search_molecule(
         [query],
         mass_window_da=5,

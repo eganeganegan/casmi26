@@ -199,29 +199,6 @@ def _search_representatives(
     return scores
 
 
-@njit(cache=False)
-def _best_scores_by_structure(
-    candidate_indices: np.ndarray,
-    structure_codes: np.ndarray,
-    representative_scores: np.ndarray,
-    allowed: np.ndarray,
-    structure_count: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Collapse representative scores to the best representative per structure."""
-    best_scores = np.zeros(structure_count, dtype=np.float32)
-    best_positions = np.full(structure_count, -1, dtype=np.int64)
-    for candidate_position in range(len(candidate_indices)):
-        if not allowed[candidate_position]:
-            continue
-        representative_index = int(candidate_indices[candidate_position])
-        structure_code = int(structure_codes[representative_index])
-        score = representative_scores[candidate_position]
-        if score > best_scores[structure_code]:
-            best_scores[structure_code] = score
-            best_positions[structure_code] = candidate_position
-    return best_scores, best_positions
-
-
 def _entropy_weight(intensity: np.ndarray) -> np.ndarray:
     probability = np.clip(np.asarray(intensity, dtype=np.float32), 0.0, None)
     total = float(probability.sum())
@@ -400,27 +377,41 @@ class RepresentativeEntropyIndex:
             )
             aggregate[local_positions] = np.maximum(aggregate[local_positions], local_scores)
 
-        structure_scores, best_positions = _best_scores_by_structure(
-            candidates,
-            self.structure_codes,
-            aggregate,
-            allowed,
-            self.structure_count,
-        )
-        eligible_codes = np.flatnonzero(best_positions >= 0)
-        if not len(eligible_codes):
+        eligible = np.flatnonzero(allowed & (aggregate > 0.0))
+        if not len(eligible):
             return []
-        keep = min(top_n, len(eligible_codes))
-        if keep < len(eligible_codes):
-            local = np.argpartition(structure_scores[eligible_codes], -keep)[-keep:]
-            eligible_codes = eligible_codes[local]
-        eligible_codes = eligible_codes[
-            np.argsort(structure_scores[eligible_codes], kind="stable")[::-1]
-        ]
+        # Usually one representative exists per structure; polarity-aware indexes may
+        # have two. Expand a small top-score slice only when duplicates prevent it from
+        # containing ``top_n`` unique structures. This avoids allocating and clearing
+        # arrays sized to the complete library for every query.
+        keep = min(top_n, len(eligible))
+        unique_positions: list[int] = []
+        while True:
+            selected = eligible
+            if keep < len(eligible):
+                local = np.argpartition(aggregate[eligible], -keep)[-keep:]
+                selected = eligible[local]
+            selected = selected[np.argsort(aggregate[selected], kind="stable")[::-1]]
+            seen_codes: set[int] = set()
+            unique_positions = []
+            for raw_position in selected:
+                position = int(raw_position)
+                representative_index = int(candidates[position])
+                structure_code = int(self.structure_codes[representative_index])
+                if structure_code in seen_codes:
+                    continue
+                seen_codes.add(structure_code)
+                unique_positions.append(position)
+                if len(unique_positions) == top_n:
+                    break
+            if len(unique_positions) == top_n or keep == len(eligible):
+                break
+            keep = min(len(eligible), max(keep + 1, keep * 2))
+
         hits: list[EntropyAnalogHit] = []
-        for structure_code in eligible_codes:
-            position = int(best_positions[structure_code])
+        for position in unique_positions:
             representative_index = int(candidates[position])
+            structure_code = int(self.structure_codes[representative_index])
             reference_mass = float(self.neutral_masses[representative_index])
             hits.append(
                 EntropyAnalogHit(

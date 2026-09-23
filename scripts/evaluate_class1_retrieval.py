@@ -82,12 +82,13 @@ def main() -> None:
         eligible = np.flatnonzero(counts >= 2)
     if not len(eligible):
         raise ValueError("No structures have at least two library spectra")
+    requested_count: int | None = None
+    ineligible_ids: list[str] = []
     if args.query_ids:
         requested = pd.read_csv(args.query_ids)["molecule_id"].astype(str).tolist()
-        code_by_key = {
-            str(index.structure_keys[code]): code
-            for code in eligible
-        }
+        requested_count = len(requested)
+        code_by_key = {str(index.structure_keys[code]): code for code in eligible}
+        ineligible_ids = [key for key in requested if key not in code_by_key]
         selected_codes = np.asarray(
             [code_by_key[key] for key in requested if key in code_by_key],
             dtype=np.int64,
@@ -152,6 +153,9 @@ def main() -> None:
     report: dict[str, object] = {
         "queries": len(frame),
         "requested_query_ids": str(args.query_ids) if args.query_ids else None,
+        "requested_queries": requested_count,
+        "ineligible_or_absent_queries": len(ineligible_ids),
+        "ineligible_or_absent_examples": ineligible_ids[:10],
         "ingest_lib": args.ingest_lib,
         "mrr_at_25": float(((1.0 / ranks).where(ranks.le(25), 0.0)).fillna(0.0).mean()),
         "hits_at_1": float(frame["top_correct"].mean()),
